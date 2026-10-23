@@ -2,24 +2,37 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request, { params }) {
   const { id } = await params;
+  const backendUrl = (process.env.BACKEND_URL || 'http://127.0.0.1:8000')
+    .replace(/\/+$/, '');
 
   try {
-    const res = await fetch(`http://127.0.0.1:8000/products/${id}/image`, {
-      cache: 'no-store',
-    });
-
-    if (!res.ok) {
-      return new NextResponse(await res.text(), {
-        status: res.status,
+    const res = await fetch(
+      `${backendUrl}/products/${encodeURIComponent(id)}/image`,
+      {
         headers: {
-          'Content-Type': res.headers.get('Content-Type') || 'text/plain',
+          'ngrok-skip-browser-warning': 'true',
         },
+        cache: 'no-store',
+      }
+    );
+
+    const contentType = res.headers.get('content-type');
+    if (!res.ok || (contentType && !contentType.startsWith('image/'))) {
+      return new NextResponse('Image not found', {
+        status: res.ok ? 404 : res.status,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });
     }
 
-    return new NextResponse(await res.arrayBuffer(), {
+    if (!res.body) {
+      return new NextResponse('Image response has no body', { status: 502 });
+    }
+
+    return new NextResponse(res.body, {
       headers: {
-        'Content-Type': res.headers.get('Content-Type') || 'image/jpeg',
+        'Content-Type': contentType || 'image/jpeg',
+        'Content-Disposition': 'inline',
+        'Cache-Control': 'public, max-age=86400',
       },
     });
   } catch (error) {
